@@ -1,0 +1,176 @@
+---
+title: "677 Final Project"
+output: 
+  pdf_document: 
+    latex_engine: xelatex
+author: Yifeng Luo
+data: 05/07/2019
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stringr)
+library(gridExtra)
+library(kableExtra)
+library(ggpubr)
+library(pwr)
+library(fitdistrplus)
+```
+
+#1 Statistics and the Law：Arguement that the difference between the rates of mortgage application refusals of white applicants and minority applicatns constitued evidence of discrimination. Test (1) the data are sufficient evidence of discrimination to warrant corrective action and (2) the data are not sufficient.
+H0: morgage refusal rate of white applicants are the same as that of minority applicant
+H1: morgage refusal rate of white applicants are lower than that of minority applicant 
+```{r}
+#Store the data
+Min<-c(20.90,23.23,23.10,30.40,42.70,62.20,39.5,38.40,26.20,55.90,49.70,44.60,36.40,32.00,10.60,34.30,42.30,26.50,51.50,47.20)#refusal rate for minority applicants
+
+White<-c(3.7,5.5,6.7,9.0,13.9,20.6,13.4,13.2,9.3,21.0,20.1,19.1,16.0,16.0,5.6,18.4,23.3,15.6,32.4,29.7)#refusal rate for white applicants
+data1 <- data.frame( 
+                group = rep(c("Min", "White"), each = 20),
+                percent = c(Min,  White)
+                )
+# Two sample T-test to test whether the refusal rate for minority applicants is greater than the refusal rate for white applicants
+res<-t.test(percent ~ group, data = data1,
+        var.equal = TRUE, alternative = "greater")
+res$p.value
+# The p-value of this t test is  1.279668e-07, which is less than the significant level alpha = 0.05. We can conclude that refusal rate for minority applicants is significantly different from refusal rate for white applicants with a p-value =  1.279668e-07. 
+
+# Power analysis to show the sufficiency
+# Calculate the effect size
+effect_size=abs(mean(Min)-mean(White))/sd(Min)
+
+ptab1 <- cbind(NULL)
+n <- seq(2, 50, by = 1)
+for (i in seq(2, 50, by = 1)) {
+  pwrt1 <- pwr.t2n.test(
+    n1 = i, n2 = i,
+    sig.level = 0.05, power = NULL,
+    d = effect_size, alternative = "two.sided"
+  )
+  ptab1 <- rbind(ptab1, pwrt1$power)
+}
+temp<-as.data.frame(ptab1)
+colnames(temp)[1]<-"num"
+ggplot(temp) +
+  geom_line(aes(x = n, y = num, colour = "darkblue"), size = 1.5) +
+  scale_color_discrete(name = "Effective size", labels = c(round(effect_size,2))) +
+  geom_hline(yintercept = 0.8, linetype = "dashed", color = "purple", size = 1.5) +
+  ylab("Power") + scale_y_continuous(breaks = seq(0, 1, by = 0.2)) + ggtitle("Two sample T test with effect size 1.63") + xlab("Group size")
+
+# According to this power analysis plot, if we want to reach the general acceptable power 0.8, we need to have more than 7 data samples in each group under the effect size 1.63. And in our acorn data, we have 20 data samples in each group. Therefore,the data has sufficient evidence to show the discrimination to warrant corrective action.
+```
+
+#2 Comparing Suppliers： Revenue aside, which of the three schools produces the higher quality ornithopters, or are do they all produce about the same quality?
+H0:They all produce about the same quality
+H1:They do not produce about the same quality
+```{r}
+data2 <- matrix(c(12,23,89,8,12,62,21,30,119),ncol=3,nrow = 3,byrow=TRUE)
+colnames(data2) <- c("dead","art","fly")
+rownames(data2) <- c("Area51","BDV","Giffen")
+fly <- as.table(data2)
+chisq.test(data2,correct = F)
+
+# The p-value of this chi-square test is 0.8613, which is much greater than the significant level alpha=0.05. Therefore, we fail to reject the null hypothesis. The data are sufficient to show that three schools produce the same quality.
+
+```
+
+#3 How deadly are sharks?
+H0:Sharks in Australia were, on average, are the same as the sharks in the United States
+H1:Sharks in Australia were, on average, are more vicious lot than the sharks in the United States
+```{r}
+data3<-read.csv("sharkattack.csv")
+# If we want to analyze the difference of viciousness between US sharks and AU sharks, we only care about the attacks in AU and US and the sharks are not be provoked first.
+data3<-data3%>%filter(Country.code=="US"|Country.code=="AU"&Type=="Unprovoked")
+temp<-data3%>%group_by(Country.code,Activity)%>%summarise(count=n())%>% ungroup()%>%group_by(Country.code)%>%mutate(percent=count/sum(count))
+kable(temp)
+ggplot(data = temp, aes(Country.code, count, group = Activity)) +
+ geom_col(aes(fill = Activity)) +
+ geom_text(aes(label = count), position = position_stack(vjust = 0.5))+theme(axis.title.x = element_text(face="bold",  size=12), 
+          axis.title.y = element_text(face="bold",  size=12),
+          plot.title = element_text(size=12, face="bold"),  
+          axis.text.x  = element_text(vjust=0.5, size=10),axis.text.y = element_text(vjust=0.5, size=10)) + theme(plot.title = element_text(hjust = 0.5))+ggtitle("")
+# According to the bar plot and data frame, US sharks made more attacks in total and attacks in surfing had higher percentage than AU sharks.
+
+# Transfer dataframe into matric to do chi-square test
+data33<- matrix(c(23,120,275,547,615,347,107,54,129,95,210,186,165,12), nrow=2,
+               dimnames = list(c("AU","US"),c("Bathing","Diving","Fishing","Other","Surfing","Swimming","Wading")))
+chisq.test(data33,correct = F)
+
+# The p-value of this chi-square test is much smaller than the significant level alpha=0.05. Therefore, we reject the null hypothesis. Sharks in Australia were, on average, are more vicious than the sharks in the United States.With sample size equal to 2109, the statistical power of the test chi-square test is 1.
+```
+
+#4 Power analysis
+Just like it is described in the book, the power to detect the difference between hypothetical parameters .65 and .45 is .48 while the power to detect the difference between hypothetical parameters .25 and .05 is .82, even though the difference between both pairs of values is .20, which means hypothetical parameters of this binomial distribution doesn not provide a scale of equal units of detectability because 0.25 and 0.05 fall into one extreme of the range.
+
+However, after arcsine transformation, which transforms the proportional parameter (from 0 to 1) to the scale of −π/2 to π/2. and then transformed
+t1 -t2 = h, which has euqal dectectability. This can solve the problem 
+of falling into either side of the range. 
+
+#5 Use the Method of Moments and MLE to find estimators as described in these three cases.
+# Case1 
+```{r}
+
+
+
+```
+# Case2
+```{r}
+
+
+
+
+```
+# Case3
+```{r}
+# read the data
+data60 <- read.table("ill-60.txt", quote="\"", comment.char="")
+data60 <-as.numeric(as.array(data60 [,1]))
+data61 <- read.table("ill-61.txt", quote="\"", comment.char="")
+data61<-as.numeric(as.array(data61[,1]))
+data62 <- read.table("ill-62.txt", quote="\"", comment.char="")
+data62<-as.numeric(as.array(data62[,1]))
+data63<- read.table("ill-63.txt", quote="\"", comment.char="")
+data63<-as.numeric(as.array(data63[,1]))
+data64 <- read.table("ill-64.txt", quote="\"", comment.char="")
+data64<-as.numeric(as.array(data64[,1]))
+
+# explore the distribution of the rainfall data
+plotdist(data60)
+plotdist(data61)
+plotdist(data62)
+plotdist(data63)
+plotdist(data64)
+
+SumOfRain<-as.data.frame(t(c(sum(data60),sum(data61),sum(data62),sum(data63),sum(data64))))
+colnames(SumOfRain)[1:5]<-c("Total Rainfall in 1960","Total Rainfall in 1961","Total Rainfall in 1962","Total Rainfall in 1963","Total Rainfall in 1964")
+kable(SumOfRain)
+
+# According to the distribution plot, five years are similar. 1961 is more wetter than others since it has the highest total rainfall. 
+
+
+
+#Test whether the gamma distribution was a good fit for their data.
+alldata<-c(data60,data61,data62,data63,data64)
+fgamma <- fitdist(alldata, "gamma")
+plot(fgamma)
+# According to Q-Q plot and P-P plot, the gamma distribution was a good fit for their data. I totally agree with Changnon and Hu 
+
+
+# calculate MOM and MLE
+mom <- fitdist(alldata, "gamma",method = "mme")
+boot_mom <- bootdist(mom)
+summary(boot_mom)
+
+mle <- fitdist(alldata, "gamma",method = "mle")
+boot_mle <- bootdist(mle)
+summary(boot_mle)
+#For method of moment the 95% confidence interval of shape from bootstrap sample is (0.27,0.53), the rate is (1.17,2.58). For MLE, the 95% confidence interval of shape from bootstrap sample is (0.38,0.51),the rate is (1.56,2.56). Apparently, the MLE estimates have narraow CI and thus lower variances.I would choose to present MLE as the estimator because it has lower variance.
+```
+
+# Analysis of decision theory article
+```{r}
+
+
+
+```
